@@ -1,0 +1,259 @@
+import random
+import matplotlib.pyplot as plt
+import numpy as np
+
+def coin_flip(p=0.5):
+    return 1 if random.random() < p else 0
+
+def simulate_experiment(n_flips=100, p=0.5):
+    return [coin_flip(p) for _ in range(n_flips)]
+
+def has_series_of_n(sequence, n=5):
+    count = 0
+    for outcome in sequence:
+        if outcome == 1:
+            count += 1
+            if count == n:
+                return True
+        else:
+            count = 0
+    return False
+
+def max_series_length(sequence):
+    #Находит длину максимальной серии орлов подряд
+    count = 0
+    max_count = 0
+    for outcome in sequence:
+        if outcome == 1:
+            count += 1
+            if count > max_count:
+                max_count = count
+        else:
+            count = 0
+    return max_count
+
+def calculate_percentile(data, percentile):
+    if not data:
+        return 0
+    
+    sorted_data = sorted(data)
+    index = (len(sorted_data) - 1) * percentile / 100
+    lower_index = int(index)
+    
+    if lower_index == index:
+        return sorted_data[lower_index]
+    
+    lower_value = sorted_data[lower_index]
+    upper_value = sorted_data[lower_index + 1]
+    return lower_value + (upper_value - lower_value) * (index - lower_index)
+
+def main():
+    # Параметры эксперимента
+    n_experiments = 50000
+    n_flips = 100
+    p =0.1
+    
+    random.seed(42)
+    
+    # Проводим эксперименты
+    all_heads_counts = []
+    all_series_results = []
+    all_max_series = []
+    
+    for i in range(n_experiments):
+        experiment = simulate_experiment(n_flips, p)
+        heads_count = sum(experiment)
+        has_series = has_series_of_n(experiment, 5)
+        max_series = max_series_length(experiment)
+        
+        all_heads_counts.append(heads_count)
+        all_series_results.append(has_series)
+        all_max_series.append(max_series)
+
+    # Вычисляем необходимые значения
+    average_heads = np.mean(all_heads_counts)
+    prob_more_than_60 = np.mean(np.array(all_heads_counts) > 60)
+    prob_series = np.mean(all_series_results)
+    lower_bound = calculate_percentile(all_heads_counts, 2.5)
+    upper_bound = calculate_percentile(all_heads_counts, 97.5)
+    avg_max_series = np.mean(all_max_series)
+
+    # начало диаграмм 
+    plt.figure(figsize=(15, 10))
+    
+    # среднее число орлов и 95% интервал
+    plt.subplot(2, 3, 1)
+    
+    # Гистограмма распределения
+    n, bins, patches = plt.hist(all_heads_counts, bins=20, alpha=0.3, color='skyblue', edgecolor='black', density=True)
+    
+    # Вертикальные линии для среднего и границ интервала
+    plt.axvline(average_heads, color='red', linestyle='-', linewidth=3, label=f'Среднее: {average_heads:.1f}')
+    plt.axvline(lower_bound, color='orange', linestyle='--', linewidth=2, label=f'2.5%: {lower_bound:.1f}')
+    plt.axvline(upper_bound, color='orange', linestyle='--', linewidth=2, label=f'97.5%: {upper_bound:.1f}')
+    
+    # Заливка интервала 95 процентов
+    plt.axvspan(lower_bound, upper_bound, alpha=0.2, color='yellow', label='95% доверительный интервал')
+    
+    plt.xlabel('Количество орлов')
+    plt.ylabel('Плотность вероятности')
+    plt.title('Среднее число орлов и 95% доверительный интервал')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    #  Вероятность >60 орлов 
+    plt.subplot(2, 3, 2)
+    
+    # Правильное вычисление вероятности >60 орлов
+    count_more_than_60 = sum(1 for x in all_heads_counts if x > 60)
+    prob_more_than_60 = count_more_than_60 / len(all_heads_counts)
+    
+    sizes = [prob_more_than_60, 1 - prob_more_than_60]
+    labels = [f'>60 орлов\n{prob_more_than_60:.4f}', f'≤60 орлов\n{1-prob_more_than_60:.4f}']
+    colors = ['lightcoral', 'lightblue']
+    
+    plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
+    plt.title('Вероятность получить >60 орлов')
+    
+    #  Распределение по интервалам
+    plt.subplot(2, 3, 3)
+    bins_intervals = list(range(0, 101, 10))
+    bins_intervals.append(101)
+    hist, _ = np.histogram(all_heads_counts, bins=bins_intervals)
+    probabilities = hist / len(all_heads_counts)
+    
+    x_labels = [f'{bins_intervals[i]}-{bins_intervals[i+1]-1}' for i in range(len(bins_intervals)-1)]
+    x_pos = np.arange(len(x_labels))
+    
+    bars = plt.bar(x_pos, probabilities, color='lightgreen', alpha=0.7, edgecolor='black')
+    plt.xlabel('Интервалы количества орлов')
+    plt.ylabel('Вероятность')
+    plt.title('Распределение по интервалам')
+    plt.xticks(x_pos, x_labels, rotation=45)
+    plt.grid(True, alpha=0.3)
+    
+    for bar, prob in zip(bars, probabilities):
+        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005, 
+                f'{prob:.3f}', ha='center', va='bottom', fontsize=8)
+    
+    #  Вероятность серии из 5 орлов
+    plt.subplot(2, 3, 4)
+    series_data = [prob_series, 1 - prob_series]
+    colors_series = ['gold', 'lightgray']
+    bars = plt.bar(['Есть серия', 'Нет серии'], series_data, color=colors_series, alpha=0.7, edgecolor='black')
+    plt.ylabel('Вероятность')
+    plt.title('Вероятность серии из 5 орлов подряд')
+    plt.grid(True, alpha=0.3)
+    
+    for bar, prob in zip(bars, series_data):
+        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, 
+                f'{prob:.3f}', ha='center', va='bottom', fontweight='bold')
+    
+    #  Длина максимальной серии
+    plt.subplot(2, 3, 5)
+    unique_lengths, counts = np.unique(all_max_series, return_counts=True)
+    probabilities_lengths = counts / len(all_max_series)
+    
+    plt.bar(unique_lengths, probabilities_lengths, color='purple', alpha=0.7, edgecolor='black')
+    plt.xlabel('Длина максимальной серии')
+    plt.ylabel('Вероятность')
+    plt.title('Распределение длин максимальных серий')
+    plt.grid(True, alpha=0.3)
+    
+    plt.axvline(avg_max_series, color='red', linestyle='--', linewidth=2, 
+                label=f'Среднее: {avg_max_series:.2f}')
+    plt.legend()
+    
+  
+
+    # 4 ДИАГРАММЫ ЗАВИСИМОСТИ ОТ P
+    p_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    n_simulations = 1000
+    
+    results = {
+        'average_heads': [],
+        'prob_more_than_60': [],
+        'interval_width': [],
+        'series_prob': [],
+        'max_series_avg': []
+    }
+    
+    for p_val in p_values:
+        heads_counts = []
+        series_results = []
+        max_series_list = []
+        
+        for _ in range(n_simulations):
+            experiment = simulate_experiment(n_flips, p_val)
+            heads_count = sum(experiment)
+            has_series = has_series_of_n(experiment, 5)
+            max_series = max_series_length(experiment)
+            
+            heads_counts.append(heads_count)
+            series_results.append(has_series)
+            max_series_list.append(max_series)
+        
+        # Вычисляем  для текущего p
+        avg_heads = np.mean(heads_counts)
+        results['average_heads'].append(avg_heads)
+        
+        # вычисление вероятности >60 орлов
+        count_more_60 = sum(1 for x in heads_counts if x > 60)
+        results['prob_more_than_60'].append(count_more_60 / len(heads_counts))
+        
+        results['series_prob'].append(np.mean(series_results))
+        results['max_series_avg'].append(np.mean(max_series_list))
+        
+        # Ширина  интервала 95 %
+        lower = calculate_percentile(heads_counts, 2.5)
+        upper = calculate_percentile(heads_counts, 97.5)
+        results['interval_width'].append(upper - lower)
+    
+    # Графики зависимости от p
+    plt.figure(figsize=(15, 10))
+    
+    # Среднее число орлов от p
+    plt.subplot(2, 2, 1)
+    plt.plot(p_values, results['average_heads'], 'o-', linewidth=3, markersize=8, 
+             color='blue', markerfacecolor='white', markeredgewidth=2)
+    plt.xlabel('Вероятность орла (p)')
+    plt.ylabel('Среднее число орлов')
+    plt.title('Зависимость среднего числа орлов от p')
+    plt.grid(True, alpha=0.3)
+    plt.xticks(p_values)
+    
+    #  Вероятность >60 орлов от p 
+    plt.subplot(2, 2, 2)
+    plt.plot(p_values, results['prob_more_than_60'], 's-', linewidth=3, markersize=8, 
+             color='orange', markerfacecolor='white', markeredgewidth=2)
+    plt.xlabel('Вероятность орла (p)')
+    plt.ylabel('Вероятность >60 орлов')
+    plt.title('Зависимость вероятности >60 орлов от p')
+    plt.grid(True, alpha=0.3)
+    plt.xticks(p_values)
+    
+    # Ширина доверительного интервала от p
+    plt.subplot(2, 2, 3)
+    plt.plot(p_values, results['interval_width'], '^-', linewidth=3, markersize=8, 
+             color='green', markerfacecolor='white', markeredgewidth=2)
+    plt.xlabel('Вероятность орла (p)')
+    plt.ylabel('Ширина 95% интервала')
+    plt.title('Зависимость ширины доверительного интервала от p')
+    plt.grid(True, alpha=0.3)
+    plt.xticks(p_values)
+    
+    #  Средняя длина максимальной серии от p
+    plt.subplot(2, 2, 4)
+    plt.plot(p_values, results['max_series_avg'], 'd-', linewidth=3, markersize=8, 
+             color='red', markerfacecolor='white', markeredgewidth=2)
+    plt.xlabel('Вероятность орла (p)')
+    plt.ylabel('Средняя длина серии')
+    plt.title('Зависимость средней длины максимальной серии от p')
+    plt.grid(True, alpha=0.3)
+    plt.xticks(p_values)
+    
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == "__main__":
+    main()
